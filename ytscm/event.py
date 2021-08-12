@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from ytscm.supporter import YTSCSupporterDetails
+from .supporter import YTSCSupporterDetails
 
 
 class YTSCEvent:
@@ -72,6 +72,26 @@ class YTSCEvent:
     """
     __message_type = None
 
+    """
+    Is supersticker.
+    """
+    __is_super_sticker = None
+
+    """
+    Sticker ID for supersticker.
+    """
+    __sticker_id = None
+
+    """
+    Alt text for supersticker.
+    """
+    __alt_text = None
+
+    """
+    Alt text language for supersticker.
+    """
+    __alt_text_language = None
+
     def __init__(self, super_chat_json):
         """
         Creates an object from a JSON super chat event object
@@ -86,13 +106,18 @@ class YTSCEvent:
             super_chat_json['snippet']['supporterDetails']
         )
 
-        self.__comment_text = super_chat_json['snippet']['commentText']
+        if 'isSuperStickerEvent' in super_chat_json['snippet']:
+            self.__is_super_sticker = True
+            self.__sticker_id = super_chat_json['snippet']['superStickerMetadata']['stickerId']
+            self.__alt_text = super_chat_json['snippet']['superStickerMetadata']['altText']
+            self.__alt_text_language = super_chat_json['snippet']['superStickerMetadata']['altTextLanguage']
+        else:
+            self.__is_super_sticker = False
+            self.__comment_text = super_chat_json['snippet']['commentText']
 
         self.__created_at = super_chat_json['snippet']['createdAt']
 
         self.__amount_micros = super_chat_json['snippet']['amountMicros']
-
-        self.__currency = super_chat_json['snippet']['currency']
 
         self.__currency = super_chat_json['snippet']['currency']
 
@@ -124,6 +149,18 @@ class YTSCEvent:
 
     def get_message_type(self):
         return self.__message_type
+
+    def is_super_sticker(self):
+        return self.__is_super_sticker
+    
+    def get_sticker_id(self):
+        return self.__sticker_id
+    
+    def get_alt_text(self):
+        return self.__alt_text
+
+    def get_alt_text_language(self):
+        return self.__alt_text_language
 
     def __eq__(self, other):
         return self.__id == other.__id

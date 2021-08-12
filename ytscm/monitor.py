@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 from threading import Timer
-from ytscm.event import YTSCEvent
+from .event import YTSCEvent
 
 import google_auth_oauthlib.flow as oauth
 import googleapiclient.discovery
@@ -42,7 +42,7 @@ class YTSCMonitor:
     # autofetch timer
     __autofetch_timer = None
 
-    def __init__(self, client_secrets_file, update_function=None):
+    def __init__(self, client_secrets_file, update_function=None, init=True):
         """
         Creates a new super chat monitor from a client secrets file
         :param client_secrets_file: the client secrets file
@@ -71,7 +71,8 @@ class YTSCMonitor:
         )
 
         # fetch the initial list of super chats
-        self.fetch()
+        if init:
+            self.fetch()
 
         # set update function (must come after initial fetch)
         self.__update = update_function
@@ -83,7 +84,8 @@ class YTSCMonitor:
 
         # create request
         request = self.__youtube.superChatEvents().list(
-            part="snippet"
+            part = "snippet",
+            maxResults = 50
         )
 
         # execute request
