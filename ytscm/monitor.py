@@ -23,6 +23,8 @@ import google_auth_oauthlib.flow as oauth
 import googleapiclient.discovery
 import googleapiclient.errors
 
+import os
+import sqlite3
 
 class YTSCMonitor:
     """
@@ -33,16 +35,13 @@ class YTSCMonitor:
     # youtube client
     __youtube = None
 
-    # dictionary of super chats from the most recent fetch
-    __super_chat_events = []
-
     # update function
     __update = None
 
     # autofetch timer
     __autofetch_timer = None
 
-    def __init__(self, client_secrets_file, update_function=None, init=True):
+    def __init__(self, client_secrets_file, progress_db, update_function=None, init=True):
         """
         Creates a new super chat monitor from a client secrets file
         :param client_secrets_file: the client secrets file
@@ -77,6 +76,23 @@ class YTSCMonitor:
         # set update function (must come after initial fetch)
         self.__update = update_function
 
+        # progress sqlite3 database
+        self.__progress_db = progress_db
+        with sqlite3.connect(progress_db) as con:
+            con.execute("CREATE TABLE IF NOT EXISTS superchats (id TEXT)")
+            con.commit()
+
+    def _is_fetched(self, id, db_connection):
+        """
+        Checks if a super chat has been fetched
+        :param id: the id of the super chat
+        :return: true if the super chat has been fetched, false otherwise
+        """
+        query = f"SELECT count(*) FROM superchats WHERE id = ?"
+        cursor = db_connection.execute(query, (id,))
+        fetched = cursor.fetchone()[0]
+        return fetched == 1
+
     def fetch(self):
         """
         Fetches a new list of super chats from the YouTube client
@@ -92,20 +108,23 @@ class YTSCMonitor:
         response = request.execute()
 
         # iterate through super chats
-        for super_chat_json in response['items']:
+        buffer = []
+        with sqlite3.connect(self.__progress_db) as con:
+            for super_chat_json in response['items']:
+                if self._is_fetched(super_chat_json['id'], con):
+                    continue
 
-            # create a new super chat object
-            super_chat_event = YTSCEvent(super_chat_json)
-
-            # if its not already in our list
-            if super_chat_event not in self.__super_chat_events:
-
-                # add it to our list
-                self.__super_chat_events.append(super_chat_event)
-
-                # call our update function and pass the super chat event
-                if self.__update is not None:
-                    self.__update(super_chat_event)
+                super_chat_event = YTSCEvent(super_chat_json)
+                buffer.append(super_chat_event.get_id())
+                self.__update(super_chat_event)
+            if len(buffer) > 0:
+                cur = con.cursor()
+                for x in buffer:
+                    cur.execute(
+                        f"INSERT INTO superchats VALUES (?)",
+                        (x,)
+                    )
+            con.commit()
 
     def start(self, interval):
         """
