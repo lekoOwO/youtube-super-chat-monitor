@@ -98,32 +98,44 @@ class YTSCMonitor:
         Fetches a new list of super chats from the YouTube client
         """
 
-        # create request
-        request = self.__youtube.superChatEvents().list(
-            part = "snippet",
-            maxResults = 50
-        )
-
-        # execute request
-        response = request.execute()
-
-        # iterate through super chats
         buffer = []
         with sqlite3.connect(self.__progress_db) as con:
-            for super_chat_json in response['items']:
-                if self._is_fetched(super_chat_json['id'], con):
-                    continue
+            token = None
+            is_finished = False
+            while True:
+                is_finished = False
 
-                super_chat_event = YTSCEvent(super_chat_json)
-                buffer.append(super_chat_event.get_id())
-                self.__update(super_chat_event)
-            if len(buffer) > 0:
-                cur = con.cursor()
-                for x in buffer:
-                    cur.execute(
-                        f"INSERT INTO superchats VALUES (?)",
-                        (x,)
-                    )
+                request = self.__youtube.superChatEvents().list(
+                    part = "snippet",
+                    maxResults = 50,
+                    pageToken=token,
+                    hl="zh-TW"
+                )
+
+                response = request.execute()
+                token = response["nextPageToken"]
+                if len(response['items']) == 0:
+                    break
+
+                # iterate through super chats
+                buffer = []
+                for super_chat_json in response['items']:
+                    if self._is_fetched(super_chat_json['id'], con):
+                        is_finished = True
+                        continue
+
+                    super_chat_event = YTSCEvent(super_chat_json)
+                    buffer.append(super_chat_event.get_id())
+                    self.__update(super_chat_event)
+                if len(buffer) > 0:
+                    cur = con.cursor()
+                    for x in buffer:
+                        cur.execute(
+                            f"INSERT INTO superchats VALUES (?)",
+                            (x,)
+                        )
+                if is_finished:
+                    break
             con.commit()
 
     def start(self, interval):
