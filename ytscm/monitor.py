@@ -25,6 +25,8 @@ import googleapiclient.errors
 
 import os
 import sqlite3
+import pickle
+import datetime
 
 class YTSCMonitor:
     """
@@ -41,7 +43,7 @@ class YTSCMonitor:
     # autofetch timer
     __autofetch_timer = None
 
-    def __init__(self, client_secrets_file, progress_db, update_function=None, init=True):
+    def __init__(self, client_secrets_file, progress_db, update_function=None, init=True, credentials_location=None):
         """
         Creates a new super chat monitor from a client secrets file
         :param client_secrets_file: the client secrets file
@@ -60,7 +62,14 @@ class YTSCMonitor:
             scopes=scopes,
         )
 
-        credentials = flow.run_console()
+        if credentials_location is not None and os.path.isfile(credentials_location):
+            with open(credentials_location, "rb") as f:
+                credentials = pickle.load(f)
+        else:
+            credentials = flow.run_console()
+            if credentials_location is not None:
+                with open(credentials_location, 'wb') as f:
+                    pickle.dump(credentials, f)
 
         # get youtube client
         self.__youtube = googleapiclient.discovery.build(
@@ -113,6 +122,7 @@ class YTSCMonitor:
                 )
 
                 response = request.execute()
+                print(f"[*] [{datetime.datetime.now()}] Fetch length: {len(response['items'])}")
                 token = response["nextPageToken"]
                 if len(response['items']) == 0:
                     break
